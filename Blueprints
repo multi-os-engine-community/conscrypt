@@ -133,7 +133,7 @@ java_library_static {
 // ANDROIDMK TRANSLATION ERROR: endif from unsupported contitional
 // endif
 // Platform conscrypt crypto JNI library
-/*cc_library_shared {
+cc_library_shared {
     host_supported: true,
     // ANDROIDMK TRANSLATION ERROR: unsupported conditional
     // ifneq (,$(wildcard $(TOP)/external/boringssl/flavor.mk))
@@ -187,8 +187,7 @@ java_library_static {
             disabled: true,
         },
     },
-}*/
-
+}
 
 // Unbundled Conscrypt jar
 java_library_static {
@@ -214,7 +213,7 @@ java_library_static {
 }
 
 // Unbundled Conscrypt crypto JNI library
-/*cc_library {
+cc_library {
     host_supported: true,
     cflags: core_cflags + ["-DNO_KEYSTORE_ENGINE"], // NO_KEYSTORE_ENGINE instructs the BoringSSL build of Conscrypt not to support
     // the keystore ENGINE. It is not available in this build configuration.
@@ -249,19 +248,19 @@ java_library_static {
             cppflags: ["-DCONSCRYPT_NOT_UNBUNDLED"],
             host_ldlibs: ["-lpthread"],
             shared_libs: [
-                "libcrypto-host",
+                "libcrypto",
                 "libjavacore",
                 "liblog",
                 "libnativehelper",
-                "libssl-host",
+                "libssl",
             ],
         },
         android: {
             srcs: ["src/compat/native/JNIHelp.cpp"],
             local_include_dirs: ["src/compat/native"],
             static_libs: [
-                "libssl_static",
-                "libcrypto_static",
+                "libssl",
+                "libcrypto",
             ],
             static: {
                 cflags: [
@@ -278,4 +277,3 @@ java_library_static {
 
     sdk_version: "9",
 }
-*/
