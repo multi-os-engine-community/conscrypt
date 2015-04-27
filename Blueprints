@@ -61,12 +61,29 @@ core_cppflags = [
 // Build for the target (device).
 //
 
+cc_binary_host {
+    name: "conscrypt_generate_constants",
+    srcs: ["src/gen/native/generate_constants.cc"],
+    shared_libs: [
+        "libcrypto",
+        "libssl",
+    ],
+}
+
+genrule {
+    name: "conscrypt_native_constants",
+    cmd: "conscrypt_generate_constants > $out",
+    out: "conscrypt/NativeConstants.java",
+    tool: "conscrypt_generate_constants",
+}
+
 // Create the conscrypt library
 java_library {
     srcs: [
         "src/main/java/**/*.java",
         "src/platform/java/**/*.java",
     ],
+    deps: ["conscrypt_native_constants"],
     java_libs: ["core-libart"],
     no_standard_libraries: true,
     javacflags: local_javac_flags,
@@ -82,6 +99,7 @@ java_library_static {
         "src/main/java/**/*.java",
         "src/platform/java/**/*.java",
     ],
+    deps: ["conscrypt_native_constants"],
     java_libs: ["core-libart"],
     no_standard_libraries: true,
     javacflags: local_javac_flags,
@@ -178,11 +196,21 @@ java_library_static {
         "src/main/java/**/*.java",
         "src/compat/java/**/*.java",
     ],
+    deps: ["conscrypt_native_constants"],
     sdk_version: "9",
     javacflags: local_javac_flags,
     tags: ["optional"],
     name: "conscrypt_unbundled",
+    java_libs: ["conscrypt-stubs"],
+}
 
+// Stub library for unbundled builds
+java_library_static {
+    srcs: ["src/stub/java/**/*.java"],
+    sdk_version: "9",
+    javacflags: local_javac_flags,
+    name: "conscrypt-stubs",
+    jack_flags: ["-D jack.classpath.default-libraries=false"],
 }
 
 // Unbundled Conscrypt crypto JNI library
