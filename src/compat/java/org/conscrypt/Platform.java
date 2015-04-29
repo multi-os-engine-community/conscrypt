@@ -32,6 +32,7 @@ import java.security.spec.ECParameterSpec;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509TrustManager;
 
 /**
@@ -171,7 +172,7 @@ public class Platform {
      * builds since we didn't backport, so return null. This code is from
      * Chromium's net/android/java/src/org/chromium/net/DefaultAndroidKeyStore.java
      */
-    public static OpenSSLKey wrapRsaKey(PrivateKey javaKey) throws InvalidKeyException {
+    public static OpenSSLKey wrapRsaKey(PrivateKey javaKey) {
         // This fixup only applies to pre-JB-MR1
         if (Build.VERSION.SDK_INT >= 17) {
             return null;
@@ -286,5 +287,17 @@ public class Platform {
         }
 
         return AddressUtils.isLiteralIpAddress(hostname);
+    }
+
+    /**
+     * Wrap the SocketFactory with the platform wrapper if needed for compatability.
+     */
+    public static SSLSocketFactory wrapSocketFactoryIfNeeded(OpenSSLSocketFactoryImpl factory) {
+        if (Build.VERSION.SDK_INT < 19) {
+            return new PreKitKatPlatformOpenSSLSocketAdapterFactory(factory);
+        } else if (Build.VERSION.SDK_INT < 22) {
+            return new KitKatPlatformOpenSSLSocketAdapterFactory(factory);
+        }
+        return factory;
     }
 }

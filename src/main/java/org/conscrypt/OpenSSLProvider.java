@@ -94,17 +94,11 @@ public final class OpenSSLProvider extends Provider {
         put("KeyPairGenerator.RSA", PREFIX + "OpenSSLRSAKeyPairGenerator");
         put("Alg.Alias.KeyPairGenerator.1.2.840.113549.1.1.1", "RSA");
 
-        put("KeyPairGenerator.DH", PREFIX + "OpenSSLDHKeyPairGenerator");
-        put("Alg.Alias.KeyPairGenerator.1.2.840.113549.1.3.1", "DH");
-
         put("KeyPairGenerator.EC", PREFIX + "OpenSSLECKeyPairGenerator");
 
         /* == KeyFactory == */
         put("KeyFactory.RSA", PREFIX + "OpenSSLRSAKeyFactory");
         put("Alg.Alias.KeyFactory.1.2.840.113549.1.1.1", "RSA");
-
-        put("KeyFactory.DH", PREFIX + "OpenSSLDHKeyFactory");
-        put("Alg.Alias.KeyFactory.1.2.840.113549.1.3.1", "DH");
 
         put("KeyFactory.EC", PREFIX + "OpenSSLECKeyFactory");
 
@@ -220,18 +214,11 @@ public final class OpenSSLProvider extends Provider {
         putSymmetricCipherImplClass("AES/CBC/NoPadding", "OpenSSLCipher$AES$CBC$NoPadding");
         putSymmetricCipherImplClass("AES/CBC/PKCS5Padding", "OpenSSLCipher$AES$CBC$PKCS5Padding");
         put("Alg.Alias.Cipher.AES/CBC/PKCS7Padding", "AES/CBC/PKCS5Padding");
-        putSymmetricCipherImplClass("AES/CFB/NoPadding", "OpenSSLCipher$AES$CFB");
         putSymmetricCipherImplClass("AES/CTR/NoPadding", "OpenSSLCipher$AES$CTR");
-        putSymmetricCipherImplClass("AES/OFB/NoPadding", "OpenSSLCipher$AES$OFB");
 
-        putSymmetricCipherImplClass("DESEDE/ECB/NoPadding", "OpenSSLCipher$DESEDE$ECB$NoPadding");
-        putSymmetricCipherImplClass("DESEDE/ECB/PKCS5Padding", "OpenSSLCipher$DESEDE$ECB$PKCS5Padding");
-        put("Alg.Alias.Cipher.DESEDE/ECB/PKCS7Padding", "DESEDE/ECB/PKCS5Padding");
         putSymmetricCipherImplClass("DESEDE/CBC/NoPadding", "OpenSSLCipher$DESEDE$CBC$NoPadding");
         putSymmetricCipherImplClass("DESEDE/CBC/PKCS5Padding", "OpenSSLCipher$DESEDE$CBC$PKCS5Padding");
         put("Alg.Alias.Cipher.DESEDE/CBC/PKCS7Padding", "DESEDE/CBC/PKCS5Padding");
-        putSymmetricCipherImplClass("DESEDE/CFB/NoPadding", "OpenSSLCipher$DESEDE$CFB");
-        putSymmetricCipherImplClass("DESEDE/OFB/NoPadding", "OpenSSLCipher$DESEDE$OFB");
 
         putSymmetricCipherImplClass("ARC4", "OpenSSLCipher$ARC4");
 

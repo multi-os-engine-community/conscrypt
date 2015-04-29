@@ -40,9 +40,8 @@
 
 LOCAL_PATH := $(call my-dir)
 
-local_javac_flags=-encoding UTF-8
+local_javac_flags:=-Xmaxwarns 9999999
 #local_javac_flags+=-Xlint:all -Xlint:-serial,-deprecation,-unchecked
-local_javac_flags+=-Xmaxwarns 9999999
 
 core_cflags := -Wall -Wextra -Werror -Wunused
 core_cppflags := -std=gnu++11 -Wall -Wextra -Werror -Wunused
@@ -51,10 +50,25 @@ core_cppflags := -std=gnu++11 -Wall -Wextra -Werror -Wunused
 # Build for the target (device).
 #
 
+include $(CLEAR_VARS)
+LOCAL_CPP_EXTENSION := cc
+LOCAL_SRC_FILES := src/gen/native/generate_constants.cc
+LOCAL_MODULE := conscrypt_generate_constants
+LOCAL_SHARED_LIBRARIES := libcrypto-host libssl-host
+include $(BUILD_HOST_EXECUTABLE)
+
+conscrypt_generate_constants_exe := $(LOCAL_INSTALLED_MODULE)
+conscrypt_gen_java_files := $(TARGET_OUT_COMMON_GEN)/conscrypt/NativeConstants.java
+
+$(conscrypt_gen_java_files): $(conscrypt_generate_constants_exe)
+	mkdir -p $(dir $@)
+	$< > $@
+
 # Create the conscrypt library
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under,src/main/java)
 LOCAL_SRC_FILES += $(call all-java-files-under,src/platform/java)
+LOCAL_GENERATED_SOURCES := $(conscrypt_gen_java_files)
 LOCAL_JAVA_LIBRARIES := core-libart
 LOCAL_NO_STANDARD_LIBRARIES := true
 LOCAL_JAVACFLAGS := $(local_javac_flags)
@@ -69,6 +83,7 @@ include $(BUILD_JAVA_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under,src/main/java)
 LOCAL_SRC_FILES += $(call all-java-files-under,src/platform/java)
+LOCAL_GENERATED_SOURCES := $(conscrypt_gen_java_files)
 LOCAL_JAVA_LIBRARIES := core-libart
 LOCAL_NO_STANDARD_LIBRARIES := true
 LOCAL_JAVACFLAGS := $(local_javac_flags)
@@ -123,11 +138,22 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under,src/main/java)
 LOCAL_SRC_FILES += $(call all-java-files-under,src/compat/java)
+LOCAL_GENERATED_SOURCES := $(conscrypt_gen_java_files)
 LOCAL_SDK_VERSION := 9
 LOCAL_JAVACFLAGS := $(local_javac_flags)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := conscrypt_unbundled
+LOCAL_JAVA_LIBRARIES := conscrypt-stubs
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+include $(BUILD_STATIC_JAVA_LIBRARY)
+
+# Stub library for unbundled builds
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES := $(call all-java-files-under,src/stub/java)
+LOCAL_SDK_VERSION := 9
+LOCAL_JAVACFLAGS := $(local_javac_flags)
+LOCAL_MODULE := conscrypt-stubs
+LOCAL_JACK_FLAGS := -D jack.classpath.default-libraries=false
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
 # Unbundled Conscrypt crypto JNI library
@@ -180,6 +206,7 @@ ifeq ($(HOST_OS),linux)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under,src/main/java)
 LOCAL_SRC_FILES += $(call all-java-files-under,src/platform/java)
+LOCAL_GENERATED_SOURCES := $(conscrypt_gen_java_files)
 LOCAL_JAVACFLAGS := $(local_javac_flags)
 LOCAL_JARJAR_RULES := $(LOCAL_PATH)/jarjar-rules.txt
 LOCAL_MODULE_TAGS := optional
@@ -192,6 +219,7 @@ include $(BUILD_HOST_DALVIK_JAVA_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under,src/main/java)
 LOCAL_SRC_FILES += $(call all-java-files-under,src/platform/java)
+LOCAL_GENERATED_SOURCES := $(conscrypt_gen_java_files)
 LOCAL_JAVACFLAGS := $(local_javac_flags)
 LOCAL_BUILD_HOST_DEX := true
 LOCAL_MODULE_TAGS := optional

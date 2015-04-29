@@ -59,17 +59,14 @@ import libcore.java.security.StandardNames;
 import libcore.java.security.TestKeyStore;
 
 import org.conscrypt.NativeCrypto.SSLHandshakeCallbacks;
-import static org.conscrypt.NativeCrypto.SSL_MODE_CBC_RECORD_SPLITTING;
-import static org.conscrypt.NativeCrypto.SSL_MODE_HANDSHAKE_CUTTHROUGH;
+import static org.conscrypt.NativeConstants.SSL_MODE_CBC_RECORD_SPLITTING;
+import static org.conscrypt.NativeConstants.SSL_MODE_HANDSHAKE_CUTTHROUGH;
 
 public class NativeCryptoTest extends TestCase {
     /** Corresponds to the native test library "libjavacoretests.so" */
     public static final String TEST_ENGINE_ID = "javacoretests";
 
     private static final long NULL = 0;
-    private static final NativeRef.EVP_PKEY NULL_EVP_PKEY = new NativeRef.EVP_PKEY(0);
-    private static final NativeRef.EVP_CIPHER_CTX NULL_EVP_CIPHER_CTX =
-            new NativeRef.EVP_CIPHER_CTX(0);
     private static final FileDescriptor INVALID_FD = new FileDescriptor();
     private static final SSLHandshakeCallbacks DUMMY_CB
             = new TestSSLHandshakeCallbacks(null, 0, null);
@@ -211,7 +208,7 @@ public class NativeCryptoTest extends TestCase {
 
     public void test_EVP_PKEY_cmp() throws Exception {
         try {
-            NativeCrypto.EVP_PKEY_cmp(NULL_EVP_PKEY, NULL_EVP_PKEY);
+            NativeCrypto.EVP_PKEY_cmp(null, null);
             fail("Should throw NullPointerException when arguments are NULL");
         } catch (NullPointerException expected) {
         }
@@ -260,13 +257,13 @@ public class NativeCryptoTest extends TestCase {
         assertNotSame(NULL, pkey2);
 
         try {
-            NativeCrypto.EVP_PKEY_cmp(pkey1, NULL_EVP_PKEY);
+            NativeCrypto.EVP_PKEY_cmp(pkey1, null);
             fail("Should throw NullPointerException when arguments are NULL");
         } catch (NullPointerException expected) {
         }
 
         try {
-            NativeCrypto.EVP_PKEY_cmp(NULL_EVP_PKEY, NULL_EVP_PKEY);
+            NativeCrypto.EVP_PKEY_cmp(null, null);
             fail("Should throw NullPointerException when arguments are NULL");
         } catch (NullPointerException expected) {
         }
@@ -328,12 +325,10 @@ public class NativeCryptoTest extends TestCase {
 
         assertTrue(s != NULL);
         assertTrue((NativeCrypto.SSL_get_options(s) & 0x01000000L) != 0); // SSL_OP_NO_SSLv2
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_SSLv3) == 0);
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_TLSv1) == 0);
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_TLSv1_1) == 0);
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_TLSv1_2) == 0);
-
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_TLSEXT_PADDING) != 0);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_SSLv3) == 0);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_TLSv1) == 0);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_TLSv1_1) == 0);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_TLSv1_2) == 0);
 
         long s2 = NativeCrypto.SSL_new(c);
         assertTrue(s != s2);
@@ -369,7 +364,7 @@ public class NativeCryptoTest extends TestCase {
         initChannelIdKey();
 
         try {
-            NativeCrypto.SSL_set1_tls_channel_id(NULL, NULL_EVP_PKEY);
+            NativeCrypto.SSL_set1_tls_channel_id(NULL, null);
             fail();
         } catch (NullPointerException expected) {
         }
@@ -378,7 +373,7 @@ public class NativeCryptoTest extends TestCase {
         long s = NativeCrypto.SSL_new(c);
 
         try {
-            NativeCrypto.SSL_set1_tls_channel_id(s, NULL_EVP_PKEY);
+            NativeCrypto.SSL_set1_tls_channel_id(s, null);
             fail();
         } catch (NullPointerException expected) {
         }
@@ -393,7 +388,7 @@ public class NativeCryptoTest extends TestCase {
 
     public void test_SSL_use_PrivateKey() throws Exception {
         try {
-            NativeCrypto.SSL_use_PrivateKey(NULL, NULL_EVP_PKEY);
+            NativeCrypto.SSL_use_PrivateKey(NULL, null);
             fail();
         } catch (NullPointerException expected) {
         }
@@ -402,7 +397,7 @@ public class NativeCryptoTest extends TestCase {
         long s = NativeCrypto.SSL_new(c);
 
         try {
-            NativeCrypto.SSL_use_PrivateKey(s, NULL_EVP_PKEY);
+            NativeCrypto.SSL_use_PrivateKey(s, null);
             fail();
         } catch (NullPointerException expected) {
         }
@@ -539,9 +534,9 @@ public class NativeCryptoTest extends TestCase {
 
         long c = NativeCrypto.SSL_CTX_new();
         long s = NativeCrypto.SSL_new(c);
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_SSLv3) == 0);
-        NativeCrypto.SSL_set_options(s, NativeCrypto.SSL_OP_NO_SSLv3);
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_SSLv3) != 0);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_SSLv3) == 0);
+        NativeCrypto.SSL_set_options(s, NativeConstants.SSL_OP_NO_SSLv3);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_SSLv3) != 0);
         NativeCrypto.SSL_free(s);
         NativeCrypto.SSL_CTX_free(c);
     }
@@ -555,11 +550,11 @@ public class NativeCryptoTest extends TestCase {
 
         long c = NativeCrypto.SSL_CTX_new();
         long s = NativeCrypto.SSL_new(c);
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_SSLv3) == 0);
-        NativeCrypto.SSL_set_options(s, NativeCrypto.SSL_OP_NO_SSLv3);
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_SSLv3) != 0);
-        NativeCrypto.SSL_clear_options(s, NativeCrypto.SSL_OP_NO_SSLv3);
-        assertTrue((NativeCrypto.SSL_get_options(s) & NativeCrypto.SSL_OP_NO_SSLv3) == 0);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_SSLv3) == 0);
+        NativeCrypto.SSL_set_options(s, NativeConstants.SSL_OP_NO_SSLv3);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_SSLv3) != 0);
+        NativeCrypto.SSL_clear_options(s, NativeConstants.SSL_OP_NO_SSLv3);
+        assertTrue((NativeCrypto.SSL_get_options(s) & NativeConstants.SSL_OP_NO_SSLv3) == 0);
         NativeCrypto.SSL_free(s);
         NativeCrypto.SSL_CTX_free(c);
     }
@@ -1157,7 +1152,7 @@ public class NativeCryptoTest extends TestCase {
                 try {
                     NativeCrypto.SSL_set_verify(s, NativeCrypto.SSL_VERIFY_PEER);
                     NativeCrypto.SSL_set_options(
-                            s, NativeCrypto.SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+                            s, NativeConstants.SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
                     NativeCrypto.SSL_renegotiate(s);
                     NativeCrypto.SSL_write(s, fd, callback, new byte[] { 42 }, 0, 1,
                                            (int) ((TIMEOUT_SECONDS * 1000) / 2));
@@ -2562,12 +2557,12 @@ public class NativeCryptoTest extends TestCase {
 
     public void test_get_RSA_private_params() throws Exception {
         try {
-            NativeCrypto.get_RSA_private_params(NULL_EVP_PKEY);
+            NativeCrypto.get_RSA_private_params(null);
         } catch (NullPointerException expected) {
         }
 
         try {
-            NativeCrypto.get_RSA_private_params(NULL_EVP_PKEY);
+            NativeCrypto.get_RSA_private_params(null);
         } catch (NullPointerException expected) {
         }
 
@@ -2585,12 +2580,12 @@ public class NativeCryptoTest extends TestCase {
 
     public void test_get_RSA_public_params() throws Exception {
         try {
-            NativeCrypto.get_RSA_public_params(NULL_EVP_PKEY);
+            NativeCrypto.get_RSA_public_params(null);
         } catch (NullPointerException expected) {
         }
 
         try {
-            NativeCrypto.get_RSA_public_params(NULL_EVP_PKEY);
+            NativeCrypto.get_RSA_public_params(null);
         } catch (NullPointerException expected) {
         }
 
@@ -2608,40 +2603,40 @@ public class NativeCryptoTest extends TestCase {
 
     public void test_RSA_size_null_key_Failure() throws Exception {
         try {
-            NativeCrypto.RSA_size(NULL_EVP_PKEY);
-            fail();
+            NativeCrypto.RSA_size(null);
+            fail("Expecting null pointer exception for RSA_size with null key");
         } catch (NullPointerException expected) {}
     }
 
     public void test_RSA_private_encrypt_null_key_Failure() throws Exception {
         try {
             NativeCrypto.RSA_private_encrypt(0, new byte[0], new byte[0],
-                    NULL_EVP_PKEY, 0);
-            fail();
+                    null, 0);
+            fail("Expecting null pointer exception for RSA_private encrypt with null key");
         } catch (NullPointerException expected) {}
     }
 
     public void test_RSA_private_decrypt_null_key_Failure() throws Exception {
         try {
             NativeCrypto.RSA_private_decrypt(0, new byte[0], new byte[0],
- NULL_EVP_PKEY, 0);
-            fail();
+ null, 0);
+            fail("Expecting null pointer exception for RSA_private_decrypt with null key");
         } catch (NullPointerException expected) {}
     }
 
     public void test_RSA_public_encrypt_null_key_Failure() throws Exception {
         try {
-            NativeCrypto.RSA_public_encrypt(0, new byte[0], new byte[0], NULL_EVP_PKEY,
+            NativeCrypto.RSA_public_encrypt(0, new byte[0], new byte[0], null,
                     0);
-            fail();
+            fail("Expecting null pointer exception for RSA_public encrypt with null key");
         } catch (NullPointerException expected) {}
     }
 
     public void test_RSA_public_decrypt_null_key_Failure() throws Exception {
         try {
-            NativeCrypto.RSA_public_decrypt(0, new byte[0], new byte[0], NULL_EVP_PKEY,
+            NativeCrypto.RSA_public_decrypt(0, new byte[0], new byte[0], null,
                     0);
-            fail();
+            fail("Expecting null pointer exception for RSA_public decrypt with null key");
         } catch (NullPointerException expected) {}
     }
 
@@ -2729,16 +2724,20 @@ public class NativeCryptoTest extends TestCase {
 
     public void test_EC_KEY_get_private_key_null_key_Failure() throws Exception {
         try {
-            NativeCrypto.EC_KEY_get_private_key(NULL_EVP_PKEY);
+            NativeCrypto.EC_KEY_get_private_key(null);
             fail();
         } catch (NullPointerException expected) {}
     }
 
     public void test_EC_KEY_get_public_key_null_key_Failure() throws Exception {
         try {
-            NativeCrypto.EC_KEY_get_public_key(NULL_EVP_PKEY);
+            NativeCrypto.EC_KEY_get_public_key(null);
             fail();
         } catch (NullPointerException expected) {}
+    }
+
+    public void test_ECKeyPairGenerator_CurvesAreValid() throws Exception {
+        OpenSSLECKeyPairGenerator.assertCurvesAreValid();
     }
 
     public void test_ECDH_compute_key_null_key_Failure() throws Exception {
@@ -2758,14 +2757,14 @@ public class NativeCryptoTest extends TestCase {
 
         // Assert that it fails when only the first key is null
         try {
-            NativeCrypto.ECDH_compute_key(out, outOffset, NULL_EVP_PKEY, pkey2Ref);
+            NativeCrypto.ECDH_compute_key(out, outOffset, null, pkey2Ref);
             fail();
         } catch (NullPointerException expected) {
         }
 
         // Assert that it fails when only the second key is null
         try {
-            NativeCrypto.ECDH_compute_key(out, outOffset, pkey1Ref, NULL_EVP_PKEY);
+            NativeCrypto.ECDH_compute_key(out, outOffset, pkey1Ref, null);
             fail();
         } catch (NullPointerException expected) {
         }
@@ -2777,7 +2776,7 @@ public class NativeCryptoTest extends TestCase {
         final long evpCipher = NativeCrypto.EVP_get_cipherbyname("aes-128-ecb");
 
         try {
-            NativeCrypto.EVP_CipherInit_ex(NULL_EVP_CIPHER_CTX, evpCipher, null, null, true);
+            NativeCrypto.EVP_CipherInit_ex(null, evpCipher, null, null, true);
             fail("Null context should throw NullPointerException");
         } catch (NullPointerException expected) {
         }
@@ -2835,7 +2834,6 @@ public class NativeCryptoTest extends TestCase {
         } finally {
             bis.release();
         }
-
     }
 
     public void test_create_BIO_OutputStream() throws Exception {
