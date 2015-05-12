@@ -148,8 +148,6 @@ cc_library_shared {
     cflags: ["-DJNI_JARJAR_PREFIX=\"com/android/\""],
     srcs: ["src/main/native/org_conscrypt_NativeCrypto.cpp"],
     include_dirs: [
-        "external/openssl/include",
-        "external/openssl",
         "libcore/include",
         "libcore/luni/src/main/native",
     ],
@@ -220,10 +218,6 @@ cc_library {
     cppflags: core_cppflags,
     srcs: [
         "src/main/native/org_conscrypt_NativeCrypto.cpp",
-    ],
-    include_dirs: [
-        "external/openssl/include",
-        "external/openssl",
     ],
 
     ldflags: [
