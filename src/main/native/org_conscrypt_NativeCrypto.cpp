@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2007-2008 The Android Open Source Project
+ * Copyright 2014-2016 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11478,7 +11479,11 @@ static jclass findClass(JNIEnv* env, const char* name) {
 int libconscrypt_JNI_OnLoad(JavaVM *vm, void*) {
 #else
 // Use JNI_OnLoad for when we're standalone
-int JNI_OnLoad(JavaVM *vm, void*) {
+#ifdef MOE
+MOE_ONLOAD(javacrypto) {
+#else
+jint JNI_OnLoad(JavaVM* vm, void*) {
+#endif
     JNI_TRACE("JNI_OnLoad NativeCrypto");
 #endif
     gJavaVM = vm;
