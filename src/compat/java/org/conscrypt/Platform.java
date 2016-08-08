@@ -26,18 +26,24 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Collections;
+import java.util.List;
 import java.security.InvalidKeyException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECParameterSpec;
-
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.StandardConstants;
 import javax.net.ssl.X509TrustManager;
 
 /**
@@ -59,16 +65,28 @@ public class Platform {
     }
 
     public static FileDescriptor getFileDescriptor(Socket s) {
-        try {
-            Field f_impl = Socket.class.getDeclaredField("impl");
-            f_impl.setAccessible(true);
-            Object socketImpl = f_impl.get(s);
-            Class<?> c_socketImpl = Class.forName("java.net.SocketImpl");
-            Field f_fd = c_socketImpl.getDeclaredField("fd");
-            f_fd.setAccessible(true);
-            return (FileDescriptor) f_fd.get(socketImpl);
-        } catch (Exception e) {
-            throw new RuntimeException("Can't get FileDescriptor from socket", e);
+        if (Build.VERSION.SDK_INT >= 14) {
+            // Newer style in Android
+            try {
+                Method m_getFileDescriptor = Socket.class.getDeclaredMethod("getFileDescriptor$");
+                m_getFileDescriptor.setAccessible(true);
+                return (FileDescriptor) m_getFileDescriptor.invoke(s);
+            } catch (Exception e) {
+                throw new RuntimeException(e.getCause());
+            }
+        } else {
+            // Older style in Android (pre-ICS)
+            try {
+                Field f_impl = Socket.class.getDeclaredField("impl");
+                f_impl.setAccessible(true);
+                Object socketImpl = f_impl.get(s);
+                Class<?> c_socketImpl = Class.forName("java.net.SocketImpl");
+                Field f_fd = c_socketImpl.getDeclaredField("fd");
+                f_fd.setAccessible(true);
+                return (FileDescriptor) f_fd.get(socketImpl);
+            } catch (Exception e) {
+                throw new RuntimeException("Can't get FileDescriptor from socket", e);
+            }
         }
     }
 
@@ -134,6 +152,58 @@ public class Platform {
         }
     }
 
+    public static void setSSLParameters(SSLParameters params, SSLParametersImpl impl,
+            OpenSSLSocketImpl socket) {
+        try {
+            Method m_getEndpointIdentificationAlgorithm = params.getClass().getMethod(
+                    "getEndpointIdentificationAlgorithm");
+            impl.setEndpointIdentificationAlgorithm(
+                    (String) m_getEndpointIdentificationAlgorithm.invoke(params));
+
+            Method m_getUseCipherSuitesOrder = params.getClass().getMethod(
+                    "getUseCipherSuitesOrder");
+            impl.setUseCipherSuitesOrder((boolean) m_getUseCipherSuitesOrder.invoke(params));
+
+            Method m_getServerNames = params.getClass().getMethod("getServerNames");
+            List<SNIServerName> serverNames = (List<SNIServerName>) m_getServerNames.invoke(
+                    params);
+            if (serverNames != null) {
+                for (SNIServerName serverName : serverNames) {
+                    if (serverName.getType() == StandardConstants.SNI_HOST_NAME) {
+                        socket.setHostname(((SNIHostName) serverName).getAsciiName());
+                        break;
+                    }
+                }
+            }
+        } catch (NoSuchMethodException | IllegalAccessException ignored) {
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e.getCause());
+        }
+    }
+
+    public static void getSSLParameters(SSLParameters params, SSLParametersImpl impl,
+            OpenSSLSocketImpl socket) {
+        try {
+            Method m_setEndpointIdentificationAlgorithm = params.getClass().getMethod(
+                    "setEndpointIdentificationAlgorithm", String.class);
+            m_setEndpointIdentificationAlgorithm.invoke(params,
+                    impl.getEndpointIdentificationAlgorithm());
+
+            Method m_setUseCipherSuitesOrder = params.getClass().getMethod(
+                    "setUseCipherSuitesOrder", boolean.class);
+            m_setUseCipherSuitesOrder.invoke(params, impl.getUseCipherSuitesOrder());
+
+            if (impl.getUseSni() && AddressUtils.isValidSniHostname(socket.getHostname())) {
+                Method m_setServerNames = params.getClass().getMethod("setServerNames", List.class);
+                m_setServerNames.invoke(params, Collections.<SNIServerName> singletonList(
+                        new SNIHostName(socket.getHostname())));
+            }
+        } catch (NoSuchMethodException | IllegalAccessException ignored) {
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e.getCause());
+        }
+    }
+
     /**
      * Tries to return a Class reference of one of the supplied class names.
      */
@@ -157,19 +227,65 @@ public class Platform {
         return null;
     }
 
-    public static void checkServerTrusted(X509TrustManager x509tm, X509Certificate[] chain,
-            String authType, String host) throws CertificateException {
-        // TODO: use reflection to find whether we have TrustManagerImpl
-        /*
-        if (x509tm instanceof TrustManagerImpl) {
-            TrustManagerImpl tm = (TrustManagerImpl) x509tm;
-            tm.checkServerTrusted(chain, authType, host);
-        } else {
-        */
-            x509tm.checkServerTrusted(chain, authType);
-        /*
+    /**
+     * Helper function to unify calls to the different names used for each function taking a
+     * Socket, SSLEngine, or String (legacy Android).
+     */
+    private static boolean checkTrusted(String methodName, X509TrustManager tm,
+            X509Certificate[] chain, String authType, Class<?> argumentClass,
+            Object argumentInstance) throws CertificateException {
+        // Use duck-typing to try and call the hostname-aware method if available.
+        try {
+            Method method = tm.getClass().getMethod(methodName,
+                    X509Certificate[].class,
+                    String.class,
+                    argumentClass);
+            method.invoke(tm, chain, authType, argumentInstance);
+            return true;
+        } catch (NoSuchMethodException | IllegalAccessException ignored) {
+        } catch (InvocationTargetException e) {
+            if (e.getCause() instanceof CertificateException) {
+                throw (CertificateException) e.getCause();
+            }
+            throw new RuntimeException(e.getCause());
         }
-        */
+        return false;
+    }
+
+    public static void checkClientTrusted(X509TrustManager tm, X509Certificate[] chain,
+            String authType, OpenSSLSocketImpl socket) throws CertificateException {
+        if (!checkTrusted("checkClientTrusted", tm, chain, authType, Socket.class, socket)
+                && !checkTrusted("checkClientTrusted", tm, chain, authType, String.class,
+                                 socket.getHandshakeSession().getPeerHost())) {
+            tm.checkClientTrusted(chain, authType);
+        }
+    }
+
+    public static void checkServerTrusted(X509TrustManager tm, X509Certificate[] chain,
+            String authType, OpenSSLSocketImpl socket) throws CertificateException {
+        if (!checkTrusted("checkServerTrusted", tm, chain, authType, Socket.class, socket)
+                && !checkTrusted("checkServerTrusted", tm, chain, authType, String.class,
+                                 socket.getHandshakeSession().getPeerHost())) {
+            tm.checkServerTrusted(chain, authType);
+        }
+    }
+
+    public static void checkClientTrusted(X509TrustManager tm, X509Certificate[] chain,
+            String authType, OpenSSLEngineImpl engine) throws CertificateException {
+        if (!checkTrusted("checkClientTrusted", tm, chain, authType, SSLEngine.class, engine)
+                && !checkTrusted("checkClientTrusted", tm, chain, authType, String.class,
+                                 engine.getHandshakeSession().getPeerHost())) {
+            tm.checkClientTrusted(chain, authType);
+        }
+    }
+
+    public static void checkServerTrusted(X509TrustManager tm, X509Certificate[] chain,
+            String authType, OpenSSLEngineImpl engine) throws CertificateException {
+        if (!checkTrusted("checkServerTrusted", tm, chain, authType, SSLEngine.class, engine)
+                && !checkTrusted("checkServerTrusted", tm, chain, authType, String.class,
+                                 engine.getHandshakeSession().getPeerHost())) {
+            tm.checkServerTrusted(chain, authType);
+        }
     }
 
     /**
@@ -407,5 +523,82 @@ public class Platform {
 
     public static void blockGuardOnNetwork() {
         BlockGuard.getThreadPolicy().onNetwork();
+    }
+
+    /**
+     * OID to Algorithm Name mapping.
+     */
+    public static String oidToAlgorithmName(String oid) {
+        // Old Harmony style
+        try {
+            Class<?> algNameMapperClass = Class.forName(
+                        "org.apache.harmony.security.utils.AlgNameMapper");
+            Method map2AlgNameMethod = algNameMapperClass.getDeclaredMethod("map2AlgName",
+                        String.class);
+            map2AlgNameMethod.setAccessible(true);
+            return (String) map2AlgNameMethod.invoke(null, oid);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw new RuntimeException(e);
+        } catch (Exception ignored) {
+        }
+
+        // Newer OpenJDK style
+        try {
+            Class<?> algorithmIdClass = Class.forName("sun.security.x509.AlgorithmId");
+            Method getMethod = algorithmIdClass.getDeclaredMethod("get", String.class);
+            getMethod.setAccessible(true);
+            Method getNameMethod = algorithmIdClass.getDeclaredMethod("getName");
+            getNameMethod.setAccessible(true);
+
+            Object algIdObj = getMethod.invoke(null, oid);
+            return (String) getNameMethod.invoke(algIdObj);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw new RuntimeException(e);
+        } catch (Exception ignored) {
+        }
+
+        return oid;
+    }
+
+    /*
+     * Pre-Java 8 backward compatibility.
+     */
+
+    public static SSLSession wrapSSLSession(OpenSSLSessionImpl sslSession) {
+        if (Build.VERSION.SDK_INT <= 23) {
+            return sslSession;
+        } else {
+            return new OpenSSLExtendedSessionImpl(sslSession);
+        }
+    }
+
+    /*
+     * Pre-Java-7 backward compatibility.
+     */
+
+    public static String getHostStringFromInetSocketAddress(InetSocketAddress addr) {
+        if (Build.VERSION.SDK_INT > 23) {
+            try {
+                Method m_getHostString = InetSocketAddress.class
+                        .getDeclaredMethod("getHostString");
+                return (String) m_getHostString.invoke(addr);
+            } catch (InvocationTargetException e) {
+                throw new RuntimeException(e);
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 }

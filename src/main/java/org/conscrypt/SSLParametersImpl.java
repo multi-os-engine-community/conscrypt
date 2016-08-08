@@ -43,6 +43,7 @@ import javax.crypto.SecretKey;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -100,7 +101,10 @@ public class SSLParametersImpl implements Cloneable {
     private boolean want_client_auth = false;
     // if the peer with this parameters allowed to cteate new SSL session
     private boolean enable_session_creation = true;
+    // Endpoint identification algorithm (e.g., HTTPS)
     private String endpointIdentificationAlgorithm;
+    // Whether to use the local cipher suites order
+    private boolean useCipherSuitesOrder;
 
     // client-side only, bypasses the property based configuration, used for tests
     private boolean ctVerificationEnabled;
@@ -419,17 +423,25 @@ public class SSLParametersImpl implements Cloneable {
 
     OpenSSLSessionImpl getSessionToReuse(long sslNativePointer, String hostname, int port)
             throws SSLException {
-        final OpenSSLSessionImpl sessionToReuse;
+        OpenSSLSessionImpl sessionToReuse = null;
+
         if (client_mode) {
             // look for client session to reuse
-            sessionToReuse = getCachedClientSession(clientSessionContext, hostname, port);
-            if (sessionToReuse != null) {
-                NativeCrypto.SSL_set_session(sslNativePointer,
-                        sessionToReuse.sslSessionNativePointer);
+            SSLSession cachedSession = getCachedClientSession(clientSessionContext, hostname, port);
+            if (cachedSession != null) {
+                if (cachedSession instanceof OpenSSLSessionImpl) {
+                    sessionToReuse = (OpenSSLSessionImpl) cachedSession;
+                } else if (cachedSession instanceof OpenSSLExtendedSessionImpl) {
+                    sessionToReuse = ((OpenSSLExtendedSessionImpl) cachedSession).getDelegate();
+                }
+
+                if (sessionToReuse != null) {
+                    NativeCrypto.SSL_set_session(sslNativePointer,
+                            sessionToReuse.sslSessionNativePointer);
+                }
             }
-        } else {
-            sessionToReuse = null;
         }
+
         return sessionToReuse;
     }
 
@@ -549,6 +561,9 @@ public class SSLParametersImpl implements Cloneable {
             if (ocspResponse != null) {
                 NativeCrypto.SSL_CTX_set_ocsp_response(sslCtxNativePointer, ocspResponse);
             }
+
+            NativeCrypto.SSL_set_options(sslNativePointer,
+                    NativeConstants.SSL_OP_CIPHER_SERVER_PREFERENCE);
         }
 
         // Enable Pre-Shared Key (PSK) key exchange if requested
@@ -760,12 +775,13 @@ public class SSLParametersImpl implements Cloneable {
     /**
      * Gets the suitable session reference from the session cache container.
      */
-    OpenSSLSessionImpl getCachedClientSession(ClientSessionContext sessionContext, String hostName,
+    SSLSession getCachedClientSession(ClientSessionContext sessionContext, String hostName,
             int port) {
         if (hostName == null) {
             return null;
         }
-        OpenSSLSessionImpl session = (OpenSSLSessionImpl) sessionContext.getSession(hostName, port);
+
+        SSLSession session = sessionContext.getSession(hostName, port);
         if (session == null) {
             return null;
         }
@@ -931,9 +947,11 @@ public class SSLParametersImpl implements Cloneable {
     }
 
     /**
-     * Finds the first {@link X509TrustManager} element in the provided array.
+     * Finds the first {@link X509ExtendedTrustManager} or
+     * {@link X509TrustManager} element in the provided array.
      *
-     * @return the first {@code X509TrustManager} or {@code null} if not found.
+     * @return the first {@code X509ExtendedTrustManager} or
+     *         {@code X509TrustManager} or {@code null} if not found.
      */
     private static X509TrustManager findFirstX509TrustManager(TrustManager[] tms) {
         for (TrustManager tm : tms) {
@@ -950,6 +968,14 @@ public class SSLParametersImpl implements Cloneable {
 
     public void setEndpointIdentificationAlgorithm(String endpointIdentificationAlgorithm) {
         this.endpointIdentificationAlgorithm = endpointIdentificationAlgorithm;
+    }
+
+    public boolean getUseCipherSuitesOrder() {
+        return useCipherSuitesOrder;
+    }
+
+    public void setUseCipherSuitesOrder(boolean useCipherSuitesOrder) {
+        this.useCipherSuitesOrder = useCipherSuitesOrder;
     }
 
     /** Key type: RSA certificate. */

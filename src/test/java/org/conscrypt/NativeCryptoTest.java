@@ -496,8 +496,15 @@ public class NativeCryptoTest extends TestCase {
 
         long c = NativeCrypto.SSL_CTX_new();
         long s = NativeCrypto.SSL_new(c);
-        // check SSL_MODE_HANDSHAKE_CUTTHROUGH off by default
-        assertEquals(0, NativeCrypto.SSL_get_mode(s) & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+        if (NativeCrypto.isBoringSSL) {
+            // check SSL_MODE_HANDSHAKE_CUTTHROUGH on by default for BoringSSL
+            assertEquals(SSL_MODE_HANDSHAKE_CUTTHROUGH,
+                    NativeCrypto.SSL_get_mode(s) & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+        } else {
+            // check SSL_MODE_HANDSHAKE_CUTTHROUGH off by default for OpenSSL
+            assertEquals(0, NativeCrypto.SSL_get_mode(s)
+                    & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+        }
         // check SSL_MODE_CBC_RECORD_SPLITTING off by default
         assertEquals(0, NativeCrypto.SSL_get_mode(s) & SSL_MODE_CBC_RECORD_SPLITTING);
 
@@ -1890,6 +1897,11 @@ public class NativeCryptoTest extends TestCase {
                     FileDescriptor fd, SSLHandshakeCallbacks callback) throws Exception {
                 byte[] negotiated = NativeCrypto.SSL_get_npn_negotiated_protocol(ssl);
                 assertEquals("spdy/2", new String(negotiated));
+                /*
+                 * False Start (a.k.a. handshake cut-through):
+                 * In BoringSSL, this is enabled unconditionally since it
+                 * implements the check internally.
+                 */
                 assertTrue("NPN should enable cutthrough on the client",
                         0 != (NativeCrypto.SSL_get_mode(ssl) & SSL_MODE_HANDSHAKE_CUTTHROUGH));
                 NativeCrypto.SSL_write(ssl, fd, callback, new byte[] { 42 }, 0, 1,
@@ -1906,8 +1918,15 @@ public class NativeCryptoTest extends TestCase {
                     FileDescriptor fd, SSLHandshakeCallbacks callback) throws Exception {
                 byte[] negotiated = NativeCrypto.SSL_get_npn_negotiated_protocol(ssl);
                 assertEquals("spdy/2", new String(negotiated));
-                assertEquals("NPN should not enable cutthrough on the server",
-                        0, NativeCrypto.SSL_get_mode(ssl) & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+                if (!NativeCrypto.isBoringSSL) {
+                    /*
+                     * False Start (a.k.a. handshake cut-through):
+                     * In BoringSSL, this is enabled unconditionally since it
+                     * implements the check internally.
+                     */
+                    assertEquals("NPN should not enable cutthrough on the server",
+                            0, NativeCrypto.SSL_get_mode(ssl) & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+                }
                 byte[] buffer = new byte[1];
                 NativeCrypto.SSL_read(ssl, fd, callback, buffer, 0, 1, 0);
                 assertEquals(42, buffer[0]);
@@ -1946,12 +1965,16 @@ public class NativeCryptoTest extends TestCase {
                     FileDescriptor fd, SSLHandshakeCallbacks callback) throws Exception {
                 byte[] negotiated = NativeCrypto.SSL_get0_alpn_selected(ssl);
                 assertEquals("spdy/2", new String(negotiated));
-                /*
-                 * There is no callback on the client, so we can't enable
-                 * cut-through
-                 */
-                assertEquals("ALPN should not enable cutthrough on the client", 0,
-                        NativeCrypto.SSL_get_mode(ssl) & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+                if (!NativeCrypto.isBoringSSL) {
+                    /*
+                     * False Start (a.k.a. handshake cut-through):
+                     * There is no callback on the client, so we can't enable
+                     * cut-through on OpenSSL. In BoringSSL, this is enabled
+                     * unconditionally since it implements the check internally.
+                     */
+                    assertEquals("ALPN should not enable cutthrough on the client", 0,
+                            NativeCrypto.SSL_get_mode(ssl) & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+                }
                 super.afterHandshake(session, ssl, context, socket, fd, callback);
             }
         };
@@ -1960,8 +1983,15 @@ public class NativeCryptoTest extends TestCase {
                     FileDescriptor fd, SSLHandshakeCallbacks callback) throws Exception {
                 byte[] negotiated = NativeCrypto.SSL_get0_alpn_selected(ssl);
                 assertEquals("spdy/2", new String(negotiated));
-                assertEquals("ALPN should not enable cutthrough on the server",
-                        0, NativeCrypto.SSL_get_mode(ssl) & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+                if (!NativeCrypto.isBoringSSL) {
+                    /*
+                     * False Start (a.k.a. handshake cut-through):
+                     * In BoringSSL, this is enabled unconditionally since it
+                     * implements the check internally.
+                     */
+                    assertEquals("ALPN should not enable cutthrough on the server",
+                            0, NativeCrypto.SSL_get_mode(ssl) & SSL_MODE_HANDSHAKE_CUTTHROUGH);
+                }
                 super.afterHandshake(session, ssl, c, sock, fd, callback);
             }
         };
@@ -2591,8 +2621,17 @@ public class NativeCryptoTest extends TestCase {
         } catch (NullPointerException expected) {
         }
 
-        assertEquals(NULL, NativeCrypto.d2i_SSL_SESSION(new byte[0]));
-        assertEquals(NULL, NativeCrypto.d2i_SSL_SESSION(new byte[1]));
+        try {
+            NativeCrypto.d2i_SSL_SESSION(new byte[0]);
+            fail("Should throw IOException with invalid SSL_SESSION data");
+        } catch (IOException expected) {
+        }
+
+        try {
+            NativeCrypto.d2i_SSL_SESSION(new byte[1]);
+            fail("Should throw IOException with invalid SSL_SESSION data");
+        } catch (IOException expected) {
+        }
 
         // positive testing by test_i2d_SSL_SESSION
     }
@@ -2645,13 +2684,37 @@ public class NativeCryptoTest extends TestCase {
         }
     }
 
-    public void test_EVP_SignInit() throws Exception {
+    public void test_EVP_DigestSignInit() throws Exception {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(512);
+
+        KeyPair kp = kpg.generateKeyPair();
+        RSAPrivateCrtKey privKey = (RSAPrivateCrtKey) kp.getPrivate();
+
+        NativeRef.EVP_PKEY pkey;
+        pkey = new NativeRef.EVP_PKEY(NativeCrypto.EVP_PKEY_new_RSA(
+                privKey.getModulus().toByteArray(),
+                privKey.getPublicExponent().toByteArray(),
+                privKey.getPrivateExponent().toByteArray(),
+                privKey.getPrimeP().toByteArray(),
+                privKey.getPrimeQ().toByteArray(),
+                privKey.getPrimeExponentP().toByteArray(),
+                privKey.getPrimeExponentQ().toByteArray(),
+                privKey.getCrtCoefficient().toByteArray()));
+        assertNotNull(pkey);
+
         final NativeRef.EVP_MD_CTX ctx = new NativeRef.EVP_MD_CTX(NativeCrypto.EVP_MD_CTX_create());
-        assertEquals(1,
-                NativeCrypto.EVP_SignInit(ctx, NativeCrypto.EVP_get_digestbyname("sha256")));
+        long evpMd = NativeCrypto.EVP_get_digestbyname("sha256");
+        NativeCrypto.EVP_DigestSignInit(ctx, evpMd, pkey);
 
         try {
-            NativeCrypto.EVP_SignInit(ctx, 0);
+            NativeCrypto.EVP_DigestSignInit(ctx, 0, pkey);
+            fail();
+        } catch (RuntimeException expected) {
+        }
+
+        try {
+            NativeCrypto.EVP_DigestSignInit(ctx, evpMd, null);
             fail();
         } catch (RuntimeException expected) {
         }

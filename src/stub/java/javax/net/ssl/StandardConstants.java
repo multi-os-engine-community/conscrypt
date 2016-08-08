@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 The Android Open Source Project
+ * Copyright 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,15 @@
  * limitations under the License.
  */
 
-package org.apache.harmony.security.utils;
+package javax.net.ssl;
 
-import org.conscrypt.NativeCrypto;
-
-public class AlgNameMapper {
-    private AlgNameMapper() {
+/**
+ * Stub class for compiling unbundled.
+ */
+public final class StandardConstants {
+    private StandardConstants() {
+        throw new UnsupportedOperationException("Stub!");
     }
 
-    public static String map2AlgName(String oid) {
-        return NativeCrypto.OBJ_txt2nid_longName(oid);
-    }
-
-    public static void setSource(Object o) {
-    }
+    public static final int SNI_HOST_NAME = 0;
 }

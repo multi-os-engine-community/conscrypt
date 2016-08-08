@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 The Android Open Source Project
+ * Copyright 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-package org.apache.harmony.security.utils;
+package javax.net.ssl;
 
 /**
- * Provides a mapping source that the {@link AlgNameMapper} can query for
- * mapping between algorithm names and OIDs.
+ * Stub class for compiling unbundled.
  */
-public interface AlgNameMapperSource {
-    public String mapNameToOid(String algName);
+public class SNIServerName {
+    protected SNIServerName() {
+        throw new UnsupportedOperationException("Stub!");
+    }
 
-    public String mapOidToName(String oid);
+    public final int getType() {
+        throw new UnsupportedOperationException("Stub!");
+    }
 }

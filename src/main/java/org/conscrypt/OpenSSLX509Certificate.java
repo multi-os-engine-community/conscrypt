@@ -48,11 +48,11 @@ import java.util.Set;
 import java.util.TimeZone;
 import javax.crypto.BadPaddingException;
 import javax.security.auth.x500.X500Principal;
-import org.apache.harmony.security.utils.AlgNameMapper;
 import org.conscrypt.OpenSSLX509CertificateFactory.ParsingException;
 
 public class OpenSSLX509Certificate extends X509Certificate {
     private transient final long mContext;
+    private transient Integer mHashCode;
 
     OpenSSLX509Certificate(long ctx) {
         mContext = ctx;
@@ -285,7 +285,7 @@ public class OpenSSLX509Certificate extends X509Certificate {
     @Override
     public String getSigAlgName() {
         String oid = getSigAlgOID();
-        String algName = AlgNameMapper.map2AlgName(oid);
+        String algName = Platform.oidToAlgorithmName(oid);
         if (algName != null) {
             return algName;
         }
@@ -362,32 +362,17 @@ public class OpenSSLX509Certificate extends X509Certificate {
     private void verifyInternal(PublicKey key, String sigProvider) throws CertificateException,
             NoSuchAlgorithmException, InvalidKeyException, NoSuchProviderException,
             SignatureException {
-        Signature sig = getSignatureInstance(getSigAlgName(), sigProvider);
-        if (sig == null) {
-            sig = getSignatureInstance(getSigAlgOID(), sigProvider);
+        final Signature sig;
+        if (sigProvider == null) {
+            sig = Signature.getInstance(getSigAlgName());
+        } else {
+            sig = Signature.getInstance(getSigAlgName(), sigProvider);
         }
 
         sig.initVerify(key);
         sig.update(getTBSCertificate());
         if (!sig.verify(getSignature())) {
             throw new SignatureException("signature did not verify");
-        }
-    }
-
-    /**
-     * Gets a signature instance or returns {@code null} if there is no
-     * provider.
-     */
-    private Signature getSignatureInstance(String sigAlg, String sigProvider)
-            throws NoSuchProviderException {
-        try {
-            if (sigProvider == null) {
-                return Signature.getInstance(sigAlg);
-            } else {
-                return Signature.getInstance(sigAlg, sigProvider);
-            }
-        } catch (NoSuchAlgorithmException ignored) {
-            return null;
         }
     }
 
@@ -428,7 +413,7 @@ public class OpenSSLX509Certificate extends X509Certificate {
         try {
             OpenSSLKey pkey = new OpenSSLKey(NativeCrypto.X509_get_pubkey(mContext));
             return pkey.getPublicKey();
-        } catch (NoSuchAlgorithmException ignored) {
+        } catch (NoSuchAlgorithmException | InvalidKeyException ignored) {
         }
 
         /* Try generating the key using other Java providers. */
@@ -437,8 +422,7 @@ public class OpenSSLX509Certificate extends X509Certificate {
         try {
             KeyFactory kf = KeyFactory.getInstance(oid);
             return kf.generatePublic(new X509EncodedKeySpec(encoded));
-        } catch (NoSuchAlgorithmException ignored) {
-        } catch (InvalidKeySpecException ignored) {
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException ignored) {
         }
 
         /*
@@ -508,8 +492,11 @@ public class OpenSSLX509Certificate extends X509Certificate {
 
     @Override
     public int hashCode() {
-        /* Make this faster since we might be in hash-based structures. */
-        return NativeCrypto.get_X509_hashCode(mContext);
+        if (mHashCode != null) {
+            return mHashCode;
+        }
+        mHashCode = super.hashCode();
+        return mHashCode;
     }
 
     /**
